@@ -1,8 +1,8 @@
 ---
 title: "Mini-project 12 - Testing"
-author: "Natalia Andriychuk"
+author: "Khristine Cruz"
 output: html_document
-date: "3/17/2023"
+date: "08/09/2025"
 ---
 
 `{testthat}` is a new package we will be using in this project. Please install before beginning this exercise.
@@ -13,6 +13,9 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(rio)
 library(testthat)
+
+#Read-in  adsl dataset
+adsl_data <- import("https://github.com/phuse-org/phuse-scripts/raw/master/data/adam/cdisc/adsl.xpt")
 ```
 
 ## Introduction
@@ -125,6 +128,7 @@ adsl_counts <- function(adsl_data) {
   adsl_mrg_cnt
 }
 
+adsl_counts(wrangle_data(adsl_data))
 ```
 
 Functions like this may be harder to debug and test because there are dependencies inside the function e.g. `adsl_mrg_cnt` step will fail if `small_n_cnt` or `Big_N_cnt` are not computed or produce unexpected result.
@@ -146,7 +150,7 @@ calculate_Big_N_cnt <- function(adsl_data) {
 Now add some code to turn the lines of code below into the `calculate_small_n_cnt` function that takes in `adsl_data` argument. Remember to `return()` the `small_n_cnt.`
 
 ```{r}
-
+calculate_small_n_cnt <- function(adsl_data) {
   small_n_cnt <-  adsl_data  %>%
   group_by( TRT01AN, TRT01A,  SEX ) %>%
   count(name = "n")
@@ -159,8 +163,8 @@ And now let's transform the code below into the `adsl_counts`function. Remember,
 ```{r}
  
 
-  adsl_mrg_cnt <- small_n_cnt %>%
-    left_join(Big_N_cnt, by = c("TRT01A", "TRT01AN")) %>%
+  adsl_mrg_cnt <- calculate_small_n_cnt(wrangle_data(adsl_data)) %>%
+    left_join(calculate_Big_N_cnt(wrangle_data(adsl_data)), by = c("TRT01A", "TRT01AN")) %>%
     mutate(perc = round((n/N)*100, digits=1)) %>%
     ungroup() %>%
     select(TRT01A, SEX, perc) 
@@ -203,7 +207,6 @@ wrangle_data <- function(adsl_data) {
 }
 
 adsl_data <- wrangle_data(phuse_data) 
-adsl_data
 ```
 
 We expect that the **output** of `wrangle_data()` will have total of six columns and the `"SAFFL"` column will only contain `"Y"` values since this is what we are filtering on.
@@ -240,7 +243,7 @@ expect_length(names(adsl_data), 6)
 
 Run the code below, look at the error and fix it accordingly. Notice how user-friendly the error is!
 
-```{r}
+```{r, error=TRUE}
 test_that("wrangle_data() output is correct", {
   adsl_data <- wrangle_data(adsl_data)
   
@@ -274,7 +277,7 @@ When running the code, we received a value of `3` which is what we would expect 
 
 ```{r}
 test_that("expected columns are all present in the wrangle_data() output", {
-  expect_equal( , )
+  expect_equal(sum(expected_vars %in% names(adsl_data)) ,3)
 
 })
 ```
@@ -344,8 +347,8 @@ Let's not forget about the `calculate_small_n_cnt` function that we created earl
 
 ```{r}
 test_that("calculate_small_n_cnt() output has expected dim, columns, and types", {
-   expect_named( , )
-   expect_equal( , )
+   expect_named(calculate_small_n_cnt(test_data), c("TRT01AN", "TRT01A", "SEX", "n"))
+   expect_equal(dim(calculate_small_n_cnt(test_data)), c(length(unique(c(calculate_small_n_cnt(test_data)$TRT01A,calculate_small_n_cnt(test_data)$SEX))), 4)
 })
 
 ```
@@ -527,6 +530,32 @@ adsl_test_data
 ```{r}
 # TODO Create test cases for adsl_counts()
 
+test_that("adsl_counts() outputs are accurate based on expected columns, dimension, types, non-missing percentages, and counts", {
+   
+  #columns
+   expect_named(adsl_test_data, c("TRT01A", "SEX", "perc"))
+  
+  #dimension
+   expect_equal(dim(adsl_test_data), c(length(unique(c(adsl_test_data$TRT01A,adsl_test_data$SEX))), 3))
+   
+  #type
+   expect_type(adsl_test_data$perc, "double")
+   
+  #non-missing percentages 
+   expect_equal(sum(is.na(adsl_test_data$perc)), 0)
+  
+  #counts
+  aggregate_perc <- aggregate(
+    x = adsl_test_data$perc, 
+    by=list(TRT01A=adsl_test_data$TRT01A), 
+    FUN=sum)
+  
+  test_count <- adsl_test_data %>%
+    group_by(TRT01A) %>% 
+    summarise(perc_by_trt=sum(perc))
+  
+  expect_identical(aggregate_perc$x, test_count$perc_by_trt)
+})
 ```
 
 ## 
